@@ -1,18 +1,53 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\Question;
+use App\Models\QuizDetail;
+use App\Models\QuizUnit;
 use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 
 class UnitController extends Controller
 {
     public function index()
     {
-        // Fetch units with their related details and images (if images are stored in the DB or as URLs)
-        $units = Unit::with('details')->get();
-        return response()->json($units);
+        $units = Unit::with(['details', 'images'])->get();
+
+        // Transform only the fields you need:
+        $transformed = $units->map(function ($unit) {
+            return [
+                // from the 'units' table
+                'id'     => $unit->id,
+                'unit'   => $unit->unit,
+
+                // from the 'details' relationship
+                'details' => $unit->details->map(function ($detail) {
+                    return [
+                        'id'      => $detail->id,
+                        'unit_id' => $detail->unit_id,
+                        'title'   => $detail->title,
+                        // exclude 'content', 'section', 'example', etc.
+                    ];
+                }),
+
+                // from the 'images' relationship
+                'images' => $unit->images->map(function ($img) {
+                    return [
+                        'id'      => $img->id,
+                        'unit_id' => $img->unit_id,
+                        'url'     => $img->url,
+                    ];
+                }),
+            ];
+        });
+
+        return response()->json($transformed);
     }
+
 
     public function store(Request $request): JsonResponse
     {
@@ -96,5 +131,117 @@ class UnitController extends Controller
 
         return response()->json(['message' => 'Unit updated successfully', 'unit' => $unit->load('details')], 200);
     }
+
+
+
+    public function getQuizByUnitId($unitId): JsonResponse
+    {
+        // Fetch the quiz unit along with its details and questions
+        $unit = QuizUnit::with('quizDetails.questions')->find($unitId);
+        if (!$unit) {
+            return response()->json(['message' => 'Unit not found'], 404);
+            }
+        return response()->json($unit);
+    }
+
+
+
+
+
+
+
+
+
+    public function storeQuiz(Request $request) {
+        $data = $request->all();  // Assuming your JSON is sent in the body of the POST request
+
+        DB::transaction(function () use ($data) {
+            foreach ($data as $unitData) {
+                $unit = QuizUnit::create([
+                    'title' => $unitData['title']
+                ]);
+
+                foreach ($unitData['details'] as $detail) {
+                    $quizDetail = $unit->quizDetails()->create([
+                        'title' => $detail['title'],
+                        'instructions' => $detail['instructions'] ?? null
+                    ]);
+
+                    foreach ($detail['questions'] as $question) {
+                        $quizDetail->questions()->create([
+                            'text' => $question['text'] ?? null,
+                            'answer' => $question['answer'] ?? null // Now supports array or string
+                        ]);
+                    }
+                }
+            }
+        });
+
+        return response()->json(['status' => 'success'], 200);
+    }
+
+
+
+
+
+
+
+
+
+    public function updateQuizByUnitId(Request $request, $unitId): JsonResponse
+    {
+        DB::beginTransaction();
+
+        try {
+            // Find the QuizUnit
+            $unit = QuizUnit::findOrFail($unitId);
+
+            // Update the QuizUnit properties (e.g., title)
+            $unit->update([
+                'title' => $request->input('title', $unit->title),
+            ]);
+
+            // Update each QuizDetail and its associated questions
+            $quizDetails = $request->input('quiz_details', []);
+            foreach ($quizDetails as $detailData) {
+                // Find or create the QuizDetail
+                $quizDetail = QuizDetail::findOrNew($detailData['id']);
+                $quizDetail->fill([
+                    'unit_id' => $unitId,
+                    'title' => $detailData['title'],
+                    'instructions' => $detailData['instructions'] ?? null,
+                ]);
+                $quizDetail->save();
+
+                // Update Questions for each QuizDetail
+                foreach ($detailData['questions'] as $questionData) {
+                    $question = Question::findOrNew($questionData['id']);
+                    $question->fill([
+                        'detail_id' => $quizDetail->id,
+                        'text' => $questionData['text'],
+                        'answer' => $questionData['answer'],
+                    ]);
+                    $question->save();
+                }
+            }
+
+            // Commit the transaction
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Quiz updated successfully',
+                'data' => $unit->load('quizDetails.questions'), // Return the updated unit with quiz details
+            ]);
+
+        } catch (\Exception $e) {
+            // Rollback in case of an error
+            DB::rollBack();
+
+            // Return error response
+            return response()->json(['message' => 'Failed to update quiz', 'error' => $e->getMessage()], 500);
+        }
+    }
+
+
 
 }

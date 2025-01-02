@@ -16,4 +16,9 @@ class Unit extends Model
     {
         return $this->hasMany(Detail::class);
     }
+
+    public function images()
+    {
+        return $this->hasMany(Image::class);
+    }
 }
