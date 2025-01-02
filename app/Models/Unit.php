@@ -10,7 +10,9 @@ class Unit extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['unit'];
+    protected $fillable = ['unit', 'visibility'];
+    const VISIBLE = 'visible';
+    const HIDDEN = 'hidden';
 
     public function details(): HasMany
     {
@@ -20,5 +22,10 @@ class Unit extends Model
     public function images()
     {
         return $this->hasMany(Image::class);
+    }
+
+    public function getVisibilityStatusAttribute(): bool
+    {
+        return $this->visibility === self::VISIBLE;
     }
 }

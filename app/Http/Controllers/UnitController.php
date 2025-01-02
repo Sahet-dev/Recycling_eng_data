@@ -14,19 +14,20 @@ class UnitController extends Controller
 {
     public function index(): JsonResponse
     {
-        $units = Unit::with(['details', 'images'])->get();
+        $units = Unit::with(['details', 'images'])
+            ->where('visibility', Unit::VISIBLE)
+            ->get();
 
         $transformed = $units->map(function ($unit) {
             return [
                 'id'     => $unit->id,
                 'unit'   => $unit->unit,
-
+                'visibility' => $unit->visibility,
                 'details' => $unit->details->map(function ($detail) {
                     return [
                         'id'      => $detail->id,
                         'unit_id' => $detail->unit_id,
                         'title'   => $detail->title,
-
                     ];
                 }),
 
@@ -43,7 +44,6 @@ class UnitController extends Controller
         return response()->json($transformed);
     }
 
-
     public function store(Request $request): JsonResponse
     {
         if (!$request->user() || $request->user()->role !== 'admin') {
@@ -59,6 +59,7 @@ class UnitController extends Controller
             'units.*.details.*.section' => 'nullable|string',
             'units.*.details.*.content' => 'nullable|string',
             'units.*.details.*.example' => 'nullable|string' ,
+
         ]);
 
         foreach ($request->units as $unitData) {
@@ -104,6 +105,7 @@ class UnitController extends Controller
 
         $request->validate([
             'unit' => 'required|integer',
+            'visibility' => 'required|in:visible,hidden',
             'details' => 'required|array',
             'details.*.title' => 'nullable|string',
             'details.*.section' => 'nullable|string',
@@ -118,7 +120,11 @@ class UnitController extends Controller
         }
 
         // Update unit fields
-        $unit->update(['unit' => $request->unit]);
+        $unit->update([
+            'unit' => $request->unit,
+            'visibility' => $request->visibility,
+            ]);
+
 
         // Update or create details
         foreach ($request->details as $detailData) {
@@ -136,8 +142,6 @@ class UnitController extends Controller
         return response()->json(['message' => 'Unit updated successfully', 'unit' => $unit->load('details')], 200);
     }
 
-
-
     public function getQuizByUnitId($unitId): JsonResponse
     {
         // Fetch the quiz unit along with its details and questions
@@ -147,14 +151,6 @@ class UnitController extends Controller
             }
         return response()->json($unit);
     }
-
-
-
-
-
-
-
-
 
     public function storeQuiz(Request $request) {
         if (!$request->user() || $request->user()->role !== 'admin') {
@@ -187,14 +183,6 @@ class UnitController extends Controller
 
         return response()->json(['status' => 'success'], 200);
     }
-
-
-
-
-
-
-
-
 
     public function updateQuizByUnitId(Request $request, $unitId): JsonResponse
     {
@@ -255,5 +243,23 @@ class UnitController extends Controller
     }
 
 
+
+
+
+
+    public function updateVisibility($id, $status): JsonResponse
+    {
+        $unit = Unit::findOrFail($id);
+
+        // Validate the status
+        if (!in_array($status, [Unit::VISIBLE, Unit::HIDDEN])) {
+            return response()->json(['error' => 'Invalid status'], 400);
+        }
+
+        // Update the unit's visibility
+        $unit->update(['visibility' => $status]);
+
+        return response()->json(['message' => 'Unit visibility updated successfully']);
+    }
 
 }
