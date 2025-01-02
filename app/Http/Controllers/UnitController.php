@@ -8,33 +8,28 @@ use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
+
 
 class UnitController extends Controller
 {
-    public function index()
+    public function index(): JsonResponse
     {
         $units = Unit::with(['details', 'images'])->get();
 
-        // Transform only the fields you need:
         $transformed = $units->map(function ($unit) {
             return [
-                // from the 'units' table
                 'id'     => $unit->id,
                 'unit'   => $unit->unit,
 
-                // from the 'details' relationship
                 'details' => $unit->details->map(function ($detail) {
                     return [
                         'id'      => $detail->id,
                         'unit_id' => $detail->unit_id,
                         'title'   => $detail->title,
-                        // exclude 'content', 'section', 'example', etc.
+
                     ];
                 }),
 
-                // from the 'images' relationship
                 'images' => $unit->images->map(function ($img) {
                     return [
                         'id'      => $img->id,
@@ -51,6 +46,10 @@ class UnitController extends Controller
 
     public function store(Request $request): JsonResponse
     {
+        if (!$request->user() || $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Access denied'], 403);
+        }
+
         // Validate the request
         $request->validate([
             'units' => 'required|array',
@@ -82,9 +81,10 @@ class UnitController extends Controller
         return response()->json(['message' => 'Data inserted successfully'], 201);
     }
 
-    // In UnitController.php
-    public function showUnit($unitId): JsonResponse
+    public function showUnit($unitId, Request $request): JsonResponse
     {
+
+
         $unit = Unit::with('details')->findOrFail($unitId);
         return response()->json($unit);
     }
@@ -98,6 +98,10 @@ class UnitController extends Controller
      */
     public function update(Request $request, $id): JsonResponse
     {
+        if (!$request->user() || $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Access denied'], 403);
+        }
+
         $request->validate([
             'unit' => 'required|integer',
             'details' => 'required|array',
@@ -153,6 +157,10 @@ class UnitController extends Controller
 
 
     public function storeQuiz(Request $request) {
+        if (!$request->user() || $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Access denied'], 403);
+        }
+
         $data = $request->all();  // Assuming your JSON is sent in the body of the POST request
 
         DB::transaction(function () use ($data) {
@@ -190,6 +198,10 @@ class UnitController extends Controller
 
     public function updateQuizByUnitId(Request $request, $unitId): JsonResponse
     {
+        if (!$request->user() || $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'Access denied'], 403);
+        }
+
         DB::beginTransaction();
 
         try {
