@@ -16,22 +16,23 @@ class UnitController extends Controller
     {
         $units = Unit::with(['details', 'images'])
             ->where('visibility', Unit::VISIBLE)
-            ->get();
+            ->orderBy('unit', 'asc')
+            ->paginate(10);  // Paginate results
 
-        $transformed = $units->map(function ($unit) {
+        // Transform the data to match your frontend needs
+        $transformed = $units->getCollection()->map(function ($unit) {
             return [
-                'id'     => $unit->id,
-                'unit'   => $unit->unit,
+                'id'       => $unit->id,
+                'unit'     => $unit->unit,
                 'visibility' => $unit->visibility,
-                'details' => $unit->details->map(function ($detail) {
+                'details'  => $unit->details->map(function ($detail) {
                     return [
                         'id'      => $detail->id,
                         'unit_id' => $detail->unit_id,
                         'title'   => $detail->title,
                     ];
                 }),
-
-                'images' => $unit->images->map(function ($img) {
+                'images'   => $unit->images->map(function ($img) {
                     return [
                         'id'      => $img->id,
                         'unit_id' => $img->unit_id,
@@ -41,8 +42,20 @@ class UnitController extends Controller
             ];
         });
 
-        return response()->json($transformed);
+        // Return paginated response with meta and links
+        return response()->json([
+            'data' => $transformed,
+            'links' => $units->links(), // Pagination links
+            'meta'  => [
+                'current_page' => $units->currentPage(),
+                'per_page' => $units->perPage(),
+                'total' => $units->total(),
+                'last_page' => $units->lastPage(),
+            ], // Pagination meta data
+        ]);
     }
+
+
 
     public function store(Request $request): JsonResponse
     {
@@ -90,13 +103,7 @@ class UnitController extends Controller
         return response()->json($unit);
     }
 
-    /**
-     * Update a specific unit and its details.
-     *
-     * @param Request $request
-     * @param int $id
-     * @return JsonResponse
-     */
+
     public function update(Request $request, $id): JsonResponse
     {
         if (!$request->user() || $request->user()->role !== 'admin') {
