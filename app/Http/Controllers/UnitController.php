@@ -97,11 +97,13 @@ class UnitController extends Controller
 
     public function showUnit($unitId, Request $request): JsonResponse
     {
+        $unit = Unit::with(['details' => function ($query) {
+            $query->orderBy('id', 'asc');
+        }])->findOrFail($unitId);
 
-
-        $unit = Unit::with('details')->findOrFail($unitId);
         return response()->json($unit);
     }
+
 
 
     public function update(Request $request, $id): JsonResponse
