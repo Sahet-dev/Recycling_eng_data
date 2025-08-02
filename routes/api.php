@@ -26,6 +26,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/users/{id}', [UserController::class, 'update']);
     Route::delete('/users/{id}', [UserController::class, 'destroy']);
 
+    Route::patch('/units/{unit}/video-url', [UnitController::class, 'updateVideoUrl']);
+
+//    Route::post('/upload-video', [UnitController::class, 'uploadVideo']);
+//    Route::post('/units/{unit}/upload-video', [UnitController::class, 'uploadVideo']);
+    Route::post('/units/{unit}/upload-video', [UnitController::class, 'uploadVideo']);
+//    Route::get('/units/{unit}/video-url', [UnitController::class, 'getSignedVideoUrl']);
+    Route::get('/units/{id}/video-url', [UnitController::class, 'getSignedVideoUrl']);
+
+
+
 });
 
 Route::post('/login', [AuthController::class, 'login']);

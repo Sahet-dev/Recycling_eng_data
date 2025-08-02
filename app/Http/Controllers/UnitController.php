@@ -8,7 +8,7 @@ use App\Models\Unit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-
+use Illuminate\Support\Facades\Storage;
 
 class UnitController extends Controller
 {
@@ -101,8 +101,17 @@ class UnitController extends Controller
             $query->orderBy('id', 'asc');
         }])->findOrFail($unitId);
 
+        // Hide fields on the unit
+        $unit->makeHidden(['created_at', 'updated_at',  'visibility']);
+
+        // Hide fields on each detail
+        $unit->details->each(function ($detail) {
+            $detail->makeHidden(['created_at', 'updated_at']);
+        });
+
         return response()->json($unit);
     }
+
 
 
 
@@ -270,5 +279,65 @@ class UnitController extends Controller
 
         return response()->json(['message' => 'Unit visibility updated successfully']);
     }
+
+
+    public function updateVideoUrl($unitId, Request $request): JsonResponse
+    {
+        $request->validate([
+            'video_url' => 'nullable|url'
+        ]);
+
+        $unit = Unit::findOrFail($unitId);
+        $unit->video_url = $request->video_url;
+        $unit->save();
+
+        return response()->json([
+            'message' => 'Video URL updated successfully.',
+            'video_url' => $unit->video_url
+        ]);
+    }
+
+
+
+    public function uploadVideo(Request $request, $unitId): JsonResponse
+    {
+        $request->validate([
+            'video' => 'required|file|mimetypes:video/mp4,video/webm,video/ogg|max:51200',
+        ]);
+
+        $unit = Unit::findOrFail($unitId);
+        $file = $request->file('video');
+
+        $originalName = str_replace(' ', '_', $file->getClientOriginalName());
+        $fileName = 'unit_videos/' . $unit->id . '/' . time() . '_' . $originalName;
+
+        // Get S3Client directly from Disk
+        $s3Client = Storage::disk('r2')->getClient();
+
+        // Upload with correct Content-Type
+        $s3Client->putObject([
+            'Bucket' => env('CLOUDFLARE_R2_BUCKET_NAME'),
+            'Key'    => $fileName,
+            'Body'   => fopen($file->getRealPath(), 'rb'),
+            'ContentType' => $file->getMimeType(),
+            'ACL' => 'public-read', // optional if R2.dev URL is public
+        ]);
+
+        $publicUrl = rtrim(env('CLOUDFLARE_R2_PUBLIC_URL'), '/') . '/' . $fileName;
+
+        $unit->video_url = $publicUrl;
+        $unit->save();
+
+        return response()->json([
+            'message' => 'Video uploaded successfully.',
+            'video_url' => $publicUrl
+        ]);
+    }
+
+
+
+
+
+
 
 }

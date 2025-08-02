@@ -10,7 +10,7 @@ class Unit extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['unit', 'visibility'];
+    protected $fillable = ['unit', 'visibility', 'video_url'];
     const VISIBLE = 'visible';
     const HIDDEN = 'hidden';
 
