@@ -9,6 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Aws\S3\S3Client;
+
 
 class UnitController extends Controller
 {
@@ -334,6 +336,49 @@ class UnitController extends Controller
         ]);
     }
 
+
+
+
+
+
+
+
+    public function getPresignedVideoUrl(Request $request, $id)
+    {
+        $unit = Unit::findOrFail($id);
+
+        if (!$unit->video_url) {
+            return response()->json(['message' => 'No video URL found'], 404);
+        }
+
+        $path = str_replace(env('CLOUDFLARE_R2_PUBLIC_URL').'/', '', $unit->video_url);
+
+        $bucket = env('CLOUDFLARE_R2_BUCKET');
+        if (!$bucket) {
+            abort(500, 'Bucket name is not configured.');
+        }
+
+        $s3Client = new S3Client([
+            'region' => 'auto',
+            'version' => 'latest',
+            'endpoint' => env('CLOUDFLARE_R2_ENDPOINT'),
+            'credentials' => [
+                'key' => env('CLOUDFLARE_R2_ACCESS_KEY_ID'),
+                'secret' => env('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
+            ],
+        ]);
+
+        $command = $s3Client->getCommand('GetObject', [
+            'Bucket' => $bucket,
+            'Key'    => $path,
+        ]);
+
+        $request = $s3Client->createPresignedRequest($command, '+5 minutes');
+
+        $presignedUrl = (string) $request->getUri();
+
+        return response()->json(['presigned_url' => $presignedUrl]);
+    }
 
 
 

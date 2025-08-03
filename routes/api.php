@@ -6,6 +6,8 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\URL;
+
 
 
 Route::middleware(['auth:sanctum'])->group(function () {
@@ -33,6 +35,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/units/{unit}/upload-video', [UnitController::class, 'uploadVideo']);
 //    Route::get('/units/{unit}/video-url', [UnitController::class, 'getSignedVideoUrl']);
     Route::get('/units/{id}/video-url', [UnitController::class, 'getSignedVideoUrl']);
+
+
+    Route::get('/video-url/{id}', [UnitController::class, 'getPresignedVideoUrl']);
 
 
 
