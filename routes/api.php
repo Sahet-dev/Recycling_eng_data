@@ -6,6 +6,7 @@ use App\Http\Controllers\UnitController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 
 
@@ -37,7 +38,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/units/{id}/video-url', [UnitController::class, 'getSignedVideoUrl']);
 
 
-    Route::get('/video-url/{id}', [UnitController::class, 'getPresignedVideoUrl']);
+    Route::get('/video-url/{id}', [UnitController::class, 'getVideoPath']);
 
 
 
@@ -51,3 +52,7 @@ Route::get('/quizzes/{unitId}', [UnitController::class, 'getQuizByUnitId']);
 
 
 
+Route::get('/debug/r2-files', function () {
+    $files = Storage::disk('r2')->allFiles();
+    return response()->json($files);
+});

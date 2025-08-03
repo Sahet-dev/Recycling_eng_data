@@ -104,7 +104,7 @@ class UnitController extends Controller
         }])->findOrFail($unitId);
 
         // Hide fields on the unit
-        $unit->makeHidden(['created_at', 'updated_at',  'visibility']);
+        $unit->makeHidden(['created_at', 'updated_at',  'visibility',  'video_url']);
 
         // Hide fields on each detail
         $unit->details->each(function ($detail) {
@@ -267,20 +267,6 @@ class UnitController extends Controller
 
 
 
-    public function updateVisibility($id, $status): JsonResponse
-    {
-        $unit = Unit::findOrFail($id);
-
-        // Validate the status
-        if (!in_array($status, [Unit::VISIBLE, Unit::HIDDEN])) {
-            return response()->json(['error' => 'Invalid status'], 400);
-        }
-
-        // Update the unit's visibility
-        $unit->update(['visibility' => $status]);
-
-        return response()->json(['message' => 'Unit visibility updated successfully']);
-    }
 
 
     public function updateVideoUrl($unitId, Request $request): JsonResponse
@@ -301,6 +287,7 @@ class UnitController extends Controller
 
 
 
+
     public function uploadVideo(Request $request, $unitId): JsonResponse
     {
         $request->validate([
@@ -316,16 +303,17 @@ class UnitController extends Controller
         // Get S3Client directly from Disk
         $s3Client = Storage::disk('r2')->getClient();
 
-        // Upload with correct Content-Type
+        // Upload with correct Content-Type (NO ACL)
         $s3Client->putObject([
-            'Bucket' => env('CLOUDFLARE_R2_BUCKET_NAME'),
+            'Bucket' => env('CLOUDFLARE_R2_BUCKET'),
             'Key'    => $fileName,
             'Body'   => fopen($file->getRealPath(), 'rb'),
             'ContentType' => $file->getMimeType(),
-            'ACL' => 'public-read', // optional if R2.dev URL is public
         ]);
 
-        $publicUrl = rtrim(env('CLOUDFLARE_R2_PUBLIC_URL'), '/') . '/' . $fileName;
+        // Use Worker Proxy URL instead of R2.dev URL
+        $publicUrl = rtrim(env('CLOUDFLARE_WORKER_URL'), '/') . '/' . $fileName;
+
 
         $unit->video_url = $publicUrl;
         $unit->save();
@@ -342,8 +330,7 @@ class UnitController extends Controller
 
 
 
-
-    public function getPresignedVideoUrl(Request $request, $id)
+    public function getVideoPath(Request $request, $id)
     {
         $unit = Unit::findOrFail($id);
 
@@ -351,33 +338,11 @@ class UnitController extends Controller
             return response()->json(['message' => 'No video URL found'], 404);
         }
 
-        $path = str_replace(env('CLOUDFLARE_R2_PUBLIC_URL').'/', '', $unit->video_url);
+        // Extract only the relative path from the full Worker URL
+        $parsedUrl = parse_url($unit->video_url);
+        $path = ltrim($parsedUrl['path'], '/'); // Remove leading slash if exists
 
-        $bucket = env('CLOUDFLARE_R2_BUCKET');
-        if (!$bucket) {
-            abort(500, 'Bucket name is not configured.');
-        }
-
-        $s3Client = new S3Client([
-            'region' => 'auto',
-            'version' => 'latest',
-            'endpoint' => env('CLOUDFLARE_R2_ENDPOINT'),
-            'credentials' => [
-                'key' => env('CLOUDFLARE_R2_ACCESS_KEY_ID'),
-                'secret' => env('CLOUDFLARE_R2_SECRET_ACCESS_KEY'),
-            ],
-        ]);
-
-        $command = $s3Client->getCommand('GetObject', [
-            'Bucket' => $bucket,
-            'Key'    => $path,
-        ]);
-
-        $request = $s3Client->createPresignedRequest($command, '+5 minutes');
-
-        $presignedUrl = (string) $request->getUri();
-
-        return response()->json(['presigned_url' => $presignedUrl]);
+        return response()->json(['path' => $path]);
     }
 
 
